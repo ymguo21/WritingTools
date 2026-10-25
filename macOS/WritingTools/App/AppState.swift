@@ -540,7 +540,9 @@ final class AppState {
 
     // MARK: - Fixed: Proper Window Activation Verification
 
-    func replaceSelectedText(with newText: String) {
+    /// Pastes `newText` over the selection in `targetApplication`, or in the
+    /// app the current selection was captured from when none is given.
+    func replaceSelectedText(with newText: String, targetApplication: NSRunningApplication? = nil) {
         // Take a snapshot of the current clipboard BEFORE we overwrite it
         let clipboardSnapshot = NSPasteboard.general.createSnapshot()
 
@@ -550,7 +552,7 @@ final class AppState {
         pasteboard.writeObjects([newText as NSString])
 
         // Reactivate previous application using cooperative activation
-        if let previousApp = previousApplication {
+        if let previousApp = targetApplication ?? previousApplication {
             NSApp.yieldActivation(to: previousApp)
             let didActivate = previousApp.activate(from: .current, options: [.activateAllWindows])
             if !didActivate {
@@ -690,6 +692,53 @@ final class AppState {
             return
         }
 
+        pasteAttributedText(
+            mutable,
+            plainText: corrected,
+            clipboardSnapshot: clipboardSnapshot,
+            targetApplication: previousApplication
+        )
+    }
+
+    /// Pastes the reviewed result of `diff` into `targetApplication`.
+    /// When the original selection had formatting, each accepted hunk is
+    /// applied separately so formatting between edits is preserved.
+    func replaceSelectedText(
+        applying diff: TextDiff,
+        originalAttributedText: NSAttributedString?,
+        targetApplication: NSRunningApplication?
+    ) {
+        let result = diff.resultText()
+
+        guard let original = originalAttributedText,
+              !original.containsTextAttachments,
+              original.string == diff.original else {
+            replaceSelectedText(with: result, targetApplication: targetApplication)
+            return
+        }
+
+        let clipboardSnapshot = NSPasteboard.general.createSnapshot()
+        let mutable = NSMutableAttributedString(attributedString: original)
+        guard mutable.applyAcceptedHunks(of: diff) else {
+            logger.warning("Failed to apply reviewed hunks; falling back to plain-text replacement")
+            replaceSelectedText(with: result, targetApplication: targetApplication)
+            return
+        }
+
+        pasteAttributedText(
+            mutable,
+            plainText: result,
+            clipboardSnapshot: clipboardSnapshot,
+            targetApplication: targetApplication
+        )
+    }
+
+    private func pasteAttributedText(
+        _ mutable: NSAttributedString,
+        plainText corrected: String,
+        clipboardSnapshot: ClipboardSnapshot,
+        targetApplication: NSRunningApplication?
+    ) {
         let pb = NSPasteboard.general
         pb.prepareForNewContents(with: [])
 
@@ -722,7 +771,7 @@ final class AppState {
 
         pb.writeObjects([item])
 
-        if let previous = previousApplication {
+        if let previous = targetApplication ?? previousApplication {
             NSApp.yieldActivation(to: previous)
             let didActivate = previous.activate(from: .current, options: [.activateAllWindows])
             if !didActivate {

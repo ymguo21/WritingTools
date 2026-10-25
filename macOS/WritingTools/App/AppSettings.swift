@@ -159,6 +159,36 @@ final class AppSettings {
         didSet { defaults.set(openCustomCommandsInResponseWindow, forKey: "open_custom_commands_in_response_window") }
     }
 
+    // MARK: - Review Mode Settings
+
+    /// Language for on-demand explanations of reviewed edits.
+    /// Empty means "follow the app's interface language".
+    var explanationLanguage: String {
+        didSet { defaults.set(explanationLanguage, forKey: "explanation_language") }
+    }
+
+    static let defaultExplanationLanguage = "Simplified Chinese"
+
+    /// The language name sent to the model for explanations.
+    var resolvedExplanationLanguage: String {
+        Self.resolveExplanationLanguage(
+            explanationLanguage,
+            interfaceLanguageCode: Bundle.main.preferredLocalizations.first
+        )
+    }
+
+    nonisolated static func resolveExplanationLanguage(
+        _ setting: String,
+        interfaceLanguageCode: String?
+    ) -> String {
+        let trimmed = setting.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        let code = interfaceLanguageCode ?? "en"
+        return Locale(identifier: "en").localizedString(forIdentifier: code) ?? "English"
+    }
+
     var enableICloudCommandSync: Bool {
         didSet {
             defaults.set(enableICloudCommandSync, forKey: "enable_icloud_command_sync")
@@ -234,6 +264,8 @@ final class AppSettings {
         
         // Custom commands setting - default to true (open in response window)
         self.openCustomCommandsInResponseWindow = defaults.object(forKey: "open_custom_commands_in_response_window") as? Bool ?? true
+
+        self.explanationLanguage = defaults.string(forKey: "explanation_language") ?? Self.defaultExplanationLanguage
 
         // Cloud command sync setting defaults to false until explicitly enabled.
         self.enableICloudCommandSync = defaults.object(forKey: "enable_icloud_command_sync") as? Bool ?? false

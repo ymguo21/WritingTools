@@ -17,6 +17,15 @@ struct GeneralSettingsPane<SaveButton: View>: View {
     var showOnlyApiSetup: Bool
     let saveButton: SaveButton
 
+    @State private var isCustomExplanationLanguage = false
+
+    /// Preset explanation languages; "" follows the app's interface language.
+    // Computed: generic types can't have static stored properties.
+    private static var explanationLanguagePresets: [String] {
+        ["", "Simplified Chinese", "Traditional Chinese", "English"]
+    }
+    private static var customLanguageTag: String { "__custom__" }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("General Settings")
@@ -125,6 +134,43 @@ struct GeneralSettingsPane<SaveButton: View>: View {
                 }
             }
 
+            GroupBox("Review Mode") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Commands set to \"Review changes first\" show edits as a word-level diff. If a command also explains edits on request, explanations use this language.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    HStack(alignment: .center, spacing: 12) {
+                        Text("Explanation language:")
+                            .frame(width: 180, alignment: .leading)
+                        Picker("", selection: explanationLanguageSelection) {
+                            Text("Follow app language").tag("")
+                            Text("Simplified Chinese").tag("Simplified Chinese")
+                            Text("Traditional Chinese").tag("Traditional Chinese")
+                            Text("English").tag("English")
+                            Text("Other…").tag(Self.customLanguageTag)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 220)
+                        .accessibilityLabel("Explanation language")
+                    }
+
+                    if showsCustomLanguageField {
+                        HStack(alignment: .center, spacing: 12) {
+                            Text("Language name:")
+                                .frame(width: 180, alignment: .leading)
+                            TextField("e.g. Japanese", text: $settings.explanationLanguage)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                                .onChange(of: settings.explanationLanguage) { _, _ in
+                                    needsSaving = true
+                                }
+                        }
+                    }
+                }
+            }
+
             GroupBox("Onboarding") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("You can rerun the onboarding flow to review permissions and quickly configure the app.")
@@ -147,6 +193,28 @@ struct GeneralSettingsPane<SaveButton: View>: View {
                 }
             }
         }
+    }
+
+    private var showsCustomLanguageField: Bool {
+        isCustomExplanationLanguage
+            || !Self.explanationLanguagePresets.contains(settings.explanationLanguage)
+    }
+
+    private var explanationLanguageSelection: Binding<String> {
+        Binding(
+            get: {
+                showsCustomLanguageField ? Self.customLanguageTag : settings.explanationLanguage
+            },
+            set: { newValue in
+                if newValue == Self.customLanguageTag {
+                    isCustomExplanationLanguage = true
+                } else {
+                    isCustomExplanationLanguage = false
+                    settings.explanationLanguage = newValue
+                }
+                needsSaving = true
+            }
+        )
     }
 
     private func restartOnboarding() {

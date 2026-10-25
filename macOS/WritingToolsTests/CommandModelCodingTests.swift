@@ -158,6 +158,41 @@ final class CommandModelCodingTests: XCTestCase {
         XCTAssertFalse(decoded.preserveFormatting)
     }
 
+    // MARK: - Review mode flags
+
+    func testReviewFlagsRoundTripAndDefaultToFalse() throws {
+        let plain = CommandModel(name: "Plain", prompt: "p", icon: "pencil")
+        let plainJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(plain)) as? [String: Any]
+        XCTAssertNil(plainJSON?["reviewChanges"])
+        XCTAssertNil(plainJSON?["explainEdits"])
+
+        let reviewed = CommandModel(
+            name: "Reviewed",
+            prompt: "p",
+            icon: "pencil",
+            reviewChanges: true,
+            explainEdits: true
+        )
+        let decoded = try JSONDecoder().decode(CommandModel.self, from: JSONEncoder().encode(reviewed))
+        XCTAssertTrue(decoded.reviewChanges)
+        XCTAssertTrue(decoded.explainEdits)
+        XCTAssertTrue(decoded.effectiveExplainEdits)
+    }
+
+    func testExplainEditsOnlyTakesEffectInReviewMode() {
+        let command = CommandModel(name: "C", prompt: "p", icon: "pencil", reviewChanges: false, explainEdits: true)
+        XCTAssertFalse(command.effectiveExplainEdits)
+    }
+
+    func testGrammarCheckPromptIsValidStructuredPrompt() {
+        let command = CommandModel.grammarCheck
+        XCTAssertNotNil(PromptStructure.from(jsonString: command.prompt))
+        XCTAssertTrue(command.reviewChanges)
+        XCTAssertTrue(command.explainEdits)
+        XCTAssertTrue(command.isBuiltIn)
+        XCTAssertTrue(CommandModel.defaultCommands.contains { $0.id == CommandModel.BuiltInID.grammarCheck })
+    }
+
     // MARK: - Built-in IDs are stable
 
     func testBuiltInIDsAreStable() {
@@ -168,6 +203,7 @@ final class CommandModelCodingTests: XCTestCase {
         XCTAssertEqual(CommandModel.BuiltInID.concise.uuidString, "00000000-0001-0000-0000-000000000005")
         XCTAssertEqual(CommandModel.BuiltInID.summary.uuidString, "00000000-0001-0000-0000-000000000006")
         XCTAssertEqual(CommandModel.BuiltInID.keyPoints.uuidString, "00000000-0001-0000-0000-000000000007")
+        XCTAssertEqual(CommandModel.BuiltInID.grammarCheck.uuidString, "00000000-0001-0000-0000-000000000009")
         XCTAssertEqual(CommandModel.BuiltInID.table.uuidString, "00000000-0001-0000-0000-000000000008")
     }
 

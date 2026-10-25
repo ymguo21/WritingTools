@@ -15,7 +15,8 @@ struct CommandEditor: View {
     @State private var name: String
     @State private var prompt: String
     @State private var selectedIcon: String
-    @State private var useResponseWindow: Bool
+    @State private var resultMode: ResultMode
+    @State private var explainEdits: Bool
     @State private var hasShortcut: Bool
     @State private var showingIconPicker = false
     @State private var showDuplicateAlert = false
@@ -46,7 +47,8 @@ struct CommandEditor: View {
         _name = State(initialValue: command.wrappedValue.name)
         _prompt = State(initialValue: command.wrappedValue.prompt)
         _selectedIcon = State(initialValue: command.wrappedValue.icon)
-        _useResponseWindow = State(initialValue: command.wrappedValue.useResponseWindow)
+        _resultMode = State(initialValue: ResultMode(command: command.wrappedValue))
+        _explainEdits = State(initialValue: command.wrappedValue.explainEdits)
         _hasShortcut = State(initialValue: command.wrappedValue.hasShortcut)
 
         // Initialize provider override states
@@ -172,7 +174,37 @@ struct CommandEditor: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
-                    Toggle("Display response in window", isOn: $useResponseWindow)
+                    HStack(spacing: 12) {
+                        Text("Result:")
+                            .frame(width: 80, alignment: .leading)
+                        Picker("", selection: $resultMode) {
+                            Text("Replace selected text").tag(ResultMode.replace)
+                            Text("Review changes first").tag(ResultMode.review)
+                            Text("Display response in window").tag(ResultMode.window)
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 260)
+                        Spacer()
+                    }
+
+                    if resultMode == .review {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Shows each edit as a word-level diff that you can accept or reject before the text is replaced.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Toggle(isOn: $explainEdits) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("Explain edits on request")
+                                    Text("Adds Explain buttons and a question box to the review window. Nothing is sent until you ask.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.leading, 92)
+                    }
 
                     Toggle("Enable keyboard shortcut for this command", isOn: $hasShortcut)
                     
@@ -346,7 +378,10 @@ struct CommandEditor: View {
         updatedCommand.name = trimmedName
         updatedCommand.prompt = prompt
         updatedCommand.icon = selectedIcon
-        updatedCommand.useResponseWindow = useResponseWindow
+        updatedCommand.useResponseWindow = resultMode == .window
+        updatedCommand.reviewChanges = resultMode == .review
+        // Explanations belong to review mode; keep the stored value while it is off.
+        updatedCommand.explainEdits = explainEdits
         updatedCommand.hasShortcut = hasShortcut
 
         // Save provider override settings
@@ -384,6 +419,24 @@ struct CommandEditor: View {
 
         command = updatedCommand
         onSave()
+    }
+
+    /// What happens with a command's result. Stored as the
+    /// `useResponseWindow` / `reviewChanges` flags on `CommandModel`.
+    enum ResultMode: Hashable {
+        case replace
+        case review
+        case window
+
+        init(command: CommandModel) {
+            if command.reviewChanges {
+                self = .review
+            } else if command.useResponseWindow {
+                self = .window
+            } else {
+                self = .replace
+            }
+        }
     }
 
     static func normalizedCommandName(_ value: String) -> String {
