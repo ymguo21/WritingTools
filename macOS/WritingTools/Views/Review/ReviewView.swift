@@ -1,12 +1,15 @@
 import SwiftUI
 
 /// Review window content: the text with inline edits on the left, one card
-/// per edit on the right, and Apply / Copy at the bottom.
+/// per edit on the right, and Apply / Copy at the bottom. Holding Option
+/// temporarily shows the original text.
 struct ReviewView: View {
     @Bindable var viewModel: ReviewViewModel
     @Bindable private var settings = AppSettings.shared
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State private var question: String = ""
+    @State private var isOptionHeld = false
+    @State private var flagsMonitor: Any?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +32,17 @@ struct ReviewView: View {
         } message: { message in
             Text(message)
         }
+        .onAppear {
+            flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+                isOptionHeld = event.modifierFlags.contains(.option)
+                return event
+            }
+        }
         .onDisappear {
+            if let flagsMonitor {
+                NSEvent.removeMonitor(flagsMonitor)
+            }
+            flagsMonitor = nil
             viewModel.cancel()
         }
     }
@@ -88,7 +101,10 @@ struct ReviewView: View {
             if !diff.hasChanges {
                 return String(localized: "No changes suggested")
             }
-            return String(localized: "\(diff.acceptedCount) of \(diff.hunks.count) edits accepted")
+            if diff.pendingCount == 0 {
+                return String(localized: "All edits reviewed: \(diff.acceptedCount) accepted, \(diff.rejectedCount) rejected")
+            }
+            return String(localized: "\(diff.pendingCount) pending · \(diff.acceptedCount) accepted · \(diff.rejectedCount) rejected")
         }
     }
 
@@ -121,11 +137,18 @@ struct ReviewView: View {
         case .ready:
             if let diff = viewModel.diff {
                 HStack(spacing: 0) {
-                    DiffTextView(
-                        diff: diff,
-                        selectedHunkID: viewModel.selectedHunkID,
-                        onSelectHunk: { viewModel.selectedHunkID = $0 }
-                    )
+                    VStack(spacing: 0) {
+                        if diff.hasChanges {
+                            displayModeBar
+                            Divider()
+                        }
+                        DiffTextView(
+                            diff: diff,
+                            selectedHunkID: viewModel.selectedHunkID,
+                            mode: isOptionHeld ? .original : viewModel.displayMode,
+                            onSelectHunk: { viewModel.selectedHunkID = $0 }
+                        )
+                    }
                     .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
 
                     Divider()
@@ -135,6 +158,28 @@ struct ReviewView: View {
                 }
             }
         }
+    }
+
+    private var displayModeBar: some View {
+        HStack(spacing: 8) {
+            Picker("View", selection: $viewModel.displayMode) {
+                Text("Markup").tag(ReviewViewModel.DisplayMode.markup)
+                Text("Final").tag(ReviewViewModel.DisplayMode.final)
+                Text("Original").tag(ReviewViewModel.DisplayMode.original)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help("Markup shows the suggested edits, Final the text Apply writes back, Original the selected text")
+
+            Spacer()
+
+            Text(isOptionHeld ? "Showing the original" : "Hold ⌥ to see the original")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     private func sidebar(diff: TextDiff) -> some View {
@@ -155,8 +200,9 @@ struct ReviewView: View {
                             isExplaining: viewModel.explainingHunkIDs.contains(hunk.id),
                             canExplain: !viewModel.isRequestInFlight,
                             onSelect: { viewModel.selectedHunkID = hunk.id },
-                            onAccept: { viewModel.setDecision(.accepted, for: hunk.id) },
-                            onReject: { viewModel.setDecision(.rejected, for: hunk.id) },
+                            onAccept: { viewModel.decide(.accepted, for: hunk.id) },
+                            onReject: { viewModel.decide(.rejected, for: hunk.id) },
+                            onUndo: { viewModel.undoDecision(for: hunk.id) },
                             onExplain: { viewModel.explain(hunkIDs: [hunk.id]) }
                         )
                         .id(hunk.id)
@@ -190,7 +236,8 @@ struct ReviewView: View {
         }
     }
 
-    /// ↑/↓ or Tab/⇧Tab move between edits, Return accepts, Delete rejects.
+    /// ↑/↓ or Tab/⇧Tab move between edits, Return accepts, Delete rejects;
+    /// both then jump to the next pending edit.
     private func handleKeyPress(_ press: KeyPress) -> KeyPress.Result {
         switch press.key {
         case .downArrow:
@@ -201,12 +248,10 @@ struct ReviewView: View {
             viewModel.selectNextHunk(forward: !press.modifiers.contains(.shift))
         case .return:
             guard let id = viewModel.selectedHunkID else { return .ignored }
-            viewModel.setDecision(.accepted, for: id)
-            viewModel.selectNextHunk(forward: true)
+            viewModel.decide(.accepted, for: id)
         case .delete:
             guard let id = viewModel.selectedHunkID else { return .ignored }
-            viewModel.setDecision(.rejected, for: id)
-            viewModel.selectNextHunk(forward: true)
+            viewModel.decide(.rejected, for: id)
         default:
             return .ignored
         }
@@ -243,16 +288,22 @@ struct ReviewView: View {
             Button {
                 viewModel.apply()
             } label: {
-                Text("Apply")
+                Text(applyTitle)
                     .frame(minWidth: 60)
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(viewModel.phase != .ready || viewModel.diff?.hasChanges != true)
-            .help("Replace the selection with the accepted edits (⌘↩)")
+            .help("Replace the selection with the accepted and pending edits (⌘↩)")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    private var applyTitle: String {
+        let pending = viewModel.diff?.pendingCount ?? 0
+        guard viewModel.phase == .ready, pending > 0 else { return String(localized: "Apply") }
+        return String(localized: "Apply (incl. \(pending) pending)")
     }
 
     private func askQuestion() {
@@ -274,9 +325,57 @@ private struct HunkCardView: View {
     let onSelect: () -> Void
     let onAccept: () -> Void
     let onReject: () -> Void
+    let onUndo: () -> Void
     let onExplain: () -> Void
 
     var body: some View {
+        Group {
+            if hunk.decision == .pending {
+                expandedContent
+            } else {
+                reviewedContent
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(.controlBackgroundColor).opacity(0.6))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.25),
+                              lineWidth: isSelected ? 2 : 1)
+        )
+        .opacity(hunk.decision == .pending || isSelected ? 1 : 0.7)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    /// A reviewed edit collapses to one line with its outcome and Undo.
+    private var reviewedContent: some View {
+        HStack(spacing: 6) {
+            Image(systemName: hunk.decision == .accepted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(hunk.decision == .accepted ? Color.green : Color.red)
+
+            Text(hunk.decision == .accepted ? "Accepted" : "Rejected")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            changeText
+                .font(.system(size: 12))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Undo", action: onUndo)
+                .buttonStyle(.link)
+                .font(.caption)
+        }
+    }
+
+    private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             changeText
                 .font(.system(size: 13, weight: .semibold))
@@ -331,21 +430,6 @@ private struct HunkCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(.controlBackgroundColor).opacity(0.6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.25),
-                              lineWidth: isSelected ? 2 : 1)
-        )
-        .opacity(hunk.decision == .rejected ? 0.6 : 1)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(accessibilityDescription)
     }
 
     private var changeText: Text {
@@ -364,9 +448,11 @@ private struct HunkCardView: View {
     }
 
     private var accessibilityDescription: String {
-        let state = hunk.decision == .accepted
-            ? String(localized: "accepted")
-            : String(localized: "rejected")
+        let state = switch hunk.decision {
+        case .pending: String(localized: "pending")
+        case .accepted: String(localized: "accepted")
+        case .rejected: String(localized: "rejected")
+        }
         switch hunk.kind {
         case .replacement:
             return String(localized: "Replace \(hunk.oldText) with \(hunk.newText), \(state)")
@@ -387,9 +473,9 @@ private struct HunkCardView: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(isOn ? Color.white : Color.secondary)
+                .foregroundStyle(isOn ? Color.white : tint)
                 .frame(width: 22, height: 22)
-                .background(isOn ? tint : Color.secondary.opacity(0.12))
+                .background(isOn ? tint : tint.opacity(0.15))
                 .clipShape(.circle)
         }
         .buttonStyle(.plain)

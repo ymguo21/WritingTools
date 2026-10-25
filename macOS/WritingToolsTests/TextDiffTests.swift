@@ -95,6 +95,80 @@ final class TextDiffTests: XCTestCase {
         XCTAssertEqual(diff.acceptedCount, 1)
     }
 
+    func testEditsStartPendingAndPendingEditsAreApplied() {
+        let original = "teh cat sat on teh mat"
+        let revised = "the cat sat on the mat"
+        var diff = TextDiff(original: original, revised: revised)
+
+        XCTAssertTrue(diff.hunks.allSatisfy { $0.decision == .pending })
+        XCTAssertEqual(diff.pendingCount, 2)
+        XCTAssertEqual(diff.resultText(), revised)
+
+        diff.setDecision(.rejected, for: 0)
+        XCTAssertEqual(diff.pendingCount, 1)
+        XCTAssertEqual(diff.rejectedCount, 1)
+        XCTAssertEqual(diff.acceptedCount, 0)
+        XCTAssertEqual(diff.resultText(), "teh cat sat on the mat")
+
+        let attributed = NSMutableAttributedString(string: original)
+        XCTAssertTrue(attributed.applyAcceptedHunks(of: diff))
+        XCTAssertEqual(attributed.string, "teh cat sat on the mat")
+    }
+
+    func testNextPendingHunkSkipsReviewedEditsAndWraps() {
+        var diff = TextDiff(
+            original: "We saw teh dog in the park. Later we fed teh cat at home. Then we walked teh horse by the river.",
+            revised: "We saw the dog in the park. Later we fed the cat at home. Then we walked the horse by the river."
+        )
+        XCTAssertEqual(diff.hunks.count, 3)
+        XCTAssertEqual(diff.nextPendingHunkID(after: nil), 0)
+
+        diff.setDecision(.accepted, for: 0)
+        diff.setDecision(.rejected, for: 1)
+        XCTAssertEqual(diff.nextPendingHunkID(after: 0), 2)
+
+        diff.setDecision(.pending, for: 0)
+        diff.setDecision(.accepted, for: 2)
+        XCTAssertEqual(diff.nextPendingHunkID(after: 2), 0, "Wraps around to the first pending edit")
+
+        diff.setAllDecisions(.accepted)
+        XCTAssertNil(diff.nextPendingHunkID(after: 1))
+    }
+
+    func testRenderShowsResolvedTextForReviewedEdits() {
+        var diff = TextDiff(original: "teh cat sat on teh mat", revised: "the cat sat on the mat")
+
+        func rendered(_ mode: ReviewViewModel.DisplayMode) -> String {
+            DiffTextView.render(diff: diff, selectedHunkID: nil, mode: mode, fontSize: 14).text.string
+        }
+
+        XCTAssertEqual(rendered(.markup), "tehthe cat sat on tehthe mat", "Pending edits show old and new text")
+
+        diff.setDecision(.accepted, for: 0)
+        diff.setDecision(.rejected, for: 1)
+        XCTAssertEqual(rendered(.markup), "the cat sat on teh mat", "Reviewed edits show only the resulting text")
+        XCTAssertEqual(rendered(.final), diff.resultText())
+        XCTAssertEqual(rendered(.original), diff.original)
+    }
+
+    func testRenderedHunkRangesMatchInEveryMode() {
+        var diff = TextDiff(original: "I has a apple.", revised: "I have an apple.")
+        diff.setDecision(.accepted, for: 0)
+        for mode in [ReviewViewModel.DisplayMode.markup, .final, .original] {
+            let rendering = DiffTextView.render(diff: diff, selectedHunkID: 0, mode: mode, fontSize: 14)
+            let text = rendering.text.string as NSString
+            for hunk in diff.hunks {
+                let expected: String
+                switch mode {
+                case .original: expected = hunk.oldText
+                case .final: expected = hunk.isApplied ? hunk.newText : hunk.oldText
+                case .markup: expected = hunk.decision == .pending ? hunk.oldText + hunk.newText : hunk.newText
+                }
+                XCTAssertEqual(text.substring(with: rendering.hunkRanges[hunk.id]!), expected)
+            }
+        }
+    }
+
     func testRoundTripForAssortedEdits() {
         let pairs = [
             ("I has a apple , and  two banana。", "I have an apple, and two bananas."),

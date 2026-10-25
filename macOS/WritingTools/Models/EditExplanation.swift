@@ -22,7 +22,7 @@ enum EditExplanationPrompt {
         Write the explanations and categories in \(language).
 
         Respond with one JSON object per line and nothing else, no Markdown and no code fences:
-        {"id": <edit number>, "category": "<1-3 word category such as spelling, grammar, punctuation, word choice or translation>", "explanation": "<explanation>"}
+        {"id": <edit number>, "category": "<1-3 word category such as spelling, grammar, punctuation, word choice, fluency or translation>", "explanation": "<explanation>"}
         """
     }
 

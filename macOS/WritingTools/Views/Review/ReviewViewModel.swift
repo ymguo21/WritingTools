@@ -14,6 +14,16 @@ final class ReviewViewModel {
         case failed(String)
     }
 
+    /// How the text pane shows the edits.
+    enum DisplayMode: Hashable {
+        /// Pending edits as red/green suggestions, reviewed edits resolved.
+        case markup
+        /// The text that Apply would write back, without markup.
+        case final
+        /// The selected text as it was.
+        case original
+    }
+
     struct FollowUp: Identifiable, Equatable {
         let id = UUID()
         let question: String
@@ -24,6 +34,7 @@ final class ReviewViewModel {
     private(set) var phase: Phase = .checking
     private(set) var diff: TextDiff?
     var selectedHunkID: Int?
+    var displayMode: DisplayMode = .markup
     private(set) var explainingHunkIDs: Set<Int> = []
     private(set) var followUps: [FollowUp] = []
     private(set) var isAnswering = false
@@ -81,6 +92,7 @@ final class ReviewViewModel {
         phase = .checking
         diff = nil
         selectedHunkID = nil
+        displayMode = .markup
         followUps = []
 
         requestTask = Task { @MainActor [weak self] in
@@ -155,17 +167,21 @@ final class ReviewViewModel {
 
     // MARK: - Decisions
 
-    func setDecision(_ decision: DiffHunk.Decision, for id: Int) {
+    /// Records a decision and moves the selection to the next pending edit.
+    func decide(_ decision: DiffHunk.Decision, for id: Int) {
         diff?.setDecision(decision, for: id)
+        selectedHunkID = diff?.nextPendingHunkID(after: id)
     }
 
-    func toggleDecision(for id: Int) {
-        guard let hunk = diff?.hunks[safe: id] else { return }
-        setDecision(hunk.decision == .accepted ? .rejected : .accepted, for: id)
+    /// Puts a reviewed edit back to pending and selects it.
+    func undoDecision(for id: Int) {
+        diff?.setDecision(.pending, for: id)
+        selectedHunkID = id
     }
 
     func setAllDecisions(_ decision: DiffHunk.Decision) {
         diff?.setAllDecisions(decision)
+        selectedHunkID = decision == .pending ? diff?.hunks.first?.id : nil
     }
 
     func selectNextHunk(forward: Bool) {

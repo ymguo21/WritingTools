@@ -77,6 +77,8 @@ struct DiffHunk: Identifiable, Equatable {
     }
 
     enum Decision: Equatable {
+        /// Not reviewed yet. Applied like an accepted edit.
+        case pending
         case accepted
         case rejected
     }
@@ -88,10 +90,13 @@ struct DiffHunk: Identifiable, Equatable {
     /// UTF-16 range of `oldText` inside the original string.
     let oldRange: NSRange
 
-    var decision: Decision = .accepted
+    var decision: Decision = .pending
     /// Short label returned by an on-demand explanation (e.g. "spelling").
     var category: String?
     var explanation: String?
+
+    /// Whether the edit ends up in the result. Pending edits count as accepted.
+    var isApplied: Bool { decision != .rejected }
 
     var kind: Kind {
         if oldText.isEmpty { return .insertion }
@@ -108,7 +113,7 @@ enum DiffSegment: Equatable {
 }
 
 /// Word-level diff between an original text and a revision, with a
-/// per-hunk accept/reject decision.
+/// per-hunk pending/accept/reject decision.
 struct TextDiff: Equatable {
     let original: String
     let revised: String
@@ -119,6 +124,14 @@ struct TextDiff: Equatable {
 
     var acceptedCount: Int {
         hunks.filter { $0.decision == .accepted }.count
+    }
+
+    var rejectedCount: Int {
+        hunks.filter { $0.decision == .rejected }.count
+    }
+
+    var pendingCount: Int {
+        hunks.filter { $0.decision == .pending }.count
     }
 
     init(original: String, revised: String) {
@@ -162,7 +175,7 @@ struct TextDiff: Equatable {
                 result += text
             case .change(let id):
                 let hunk = hunks[id]
-                result += hunk.decision == .accepted ? hunk.newText : hunk.oldText
+                result += hunk.isApplied ? hunk.newText : hunk.oldText
             }
         }
         return result
@@ -177,6 +190,14 @@ struct TextDiff: Equatable {
         for index in hunks.indices {
             hunks[index].decision = decision
         }
+    }
+
+    /// The first pending hunk after `id`, wrapping around to the start;
+    /// nil once every hunk has been reviewed.
+    func nextPendingHunkID(after id: Int?) -> Int? {
+        let pending = hunks.filter { $0.decision == .pending }.map(\.id)
+        guard let id else { return pending.first }
+        return pending.first { $0 > id } ?? pending.first
     }
 
     // MARK: - Building
@@ -293,7 +314,7 @@ struct TextDiff: Equatable {
 // MARK: - Attributed Application
 
 extension NSMutableAttributedString {
-    /// Applies the accepted hunks of `diff` one by one, from the end of the
+    /// Applies the accepted and pending hunks of `diff` one by one, from the end of the
     /// string to the start, so formatting between separate edits is kept.
     /// Each replacement takes the attributes of the text it replaces.
     /// The receiver's string must equal `diff.original`.
@@ -301,7 +322,7 @@ extension NSMutableAttributedString {
     func applyAcceptedHunks(of diff: TextDiff) -> Bool {
         guard string == diff.original else { return false }
 
-        for hunk in diff.hunks.reversed() where hunk.decision == .accepted {
+        for hunk in diff.hunks.reversed() where hunk.isApplied {
             let range = hunk.oldRange
             guard NSMaxRange(range) <= length else { return false }
 

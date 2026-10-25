@@ -1,12 +1,16 @@
 import AppKit
 import SwiftUI
 
-/// Read-only text view that shows a `TextDiff` inline: deletions struck
-/// through in red, insertions in green, rejected edits as the original text
-/// with a dotted underline. Clicking an edit selects it.
+/// Read-only text view that shows a `TextDiff` inline. In markup mode,
+/// pending edits are suggestions (deletions struck through in red, insertions
+/// in green), accepted edits show only the new text with a faint green
+/// underline, and rejected edits show the original text with a dotted
+/// underline. Final and original modes show plain text. Clicking an edit
+/// selects it.
 struct DiffTextView: NSViewRepresentable {
     let diff: TextDiff
     let selectedHunkID: Int?
+    var mode: ReviewViewModel.DisplayMode = .markup
     var fontSize: CGFloat = 14
     let onSelectHunk: (Int) -> Void
 
@@ -38,12 +42,13 @@ struct DiffTextView: NSViewRepresentable {
         context.coordinator.onSelectHunk = onSelectHunk
         guard let textView = scrollView.documentView as? NSTextView else { return }
 
-        let key = Coordinator.RenderKey(diff: diff, selectedHunkID: selectedHunkID, fontSize: fontSize)
+        let key = Coordinator.RenderKey(diff: diff, selectedHunkID: selectedHunkID, mode: mode, fontSize: fontSize)
         guard context.coordinator.lastRenderKey != key else { return }
         let selectionChanged = context.coordinator.lastRenderKey?.selectedHunkID != selectedHunkID
+            || context.coordinator.lastRenderKey?.mode != mode
         context.coordinator.lastRenderKey = key
 
-        let rendering = Self.render(diff: diff, selectedHunkID: selectedHunkID, fontSize: fontSize)
+        let rendering = Self.render(diff: diff, selectedHunkID: selectedHunkID, mode: mode, fontSize: fontSize)
         textView.textStorage?.setAttributedString(rendering.text)
 
         if selectionChanged, let id = selectedHunkID, let range = rendering.hunkRanges[id] {
@@ -59,7 +64,12 @@ struct DiffTextView: NSViewRepresentable {
         let hunkRanges: [Int: NSRange]
     }
 
-    static func render(diff: TextDiff, selectedHunkID: Int?, fontSize: CGFloat) -> Rendering {
+    static func render(
+        diff: TextDiff,
+        selectedHunkID: Int?,
+        mode: ReviewViewModel.DisplayMode = .markup,
+        fontSize: CGFloat
+    ) -> Rendering {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 4
 
@@ -83,7 +93,15 @@ struct DiffTextView: NSViewRepresentable {
                 var linked = base
                 linked[.link] = Coordinator.url(for: id)
 
-                if hunk.decision == .accepted {
+                switch (mode, hunk.decision) {
+                case (.original, _):
+                    result.append(NSAttributedString(string: hunk.oldText, attributes: linked))
+
+                case (.final, _):
+                    let text = hunk.isApplied ? hunk.newText : hunk.oldText
+                    result.append(NSAttributedString(string: text, attributes: linked))
+
+                case (.markup, .pending):
                     if !hunk.oldText.isEmpty {
                         var removed = linked
                         removed[.foregroundColor] = NSColor.systemRed
@@ -97,22 +115,25 @@ struct DiffTextView: NSViewRepresentable {
                         added[.backgroundColor] = NSColor.systemGreen.withAlphaComponent(0.12)
                         result.append(NSAttributedString(string: visibleWhitespace(hunk.newText), attributes: added))
                     }
-                } else if !hunk.oldText.isEmpty {
+
+                case (.markup, .accepted):
+                    // An accepted deletion leaves nothing behind.
+                    var applied = linked
+                    applied[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                    applied[.underlineColor] = NSColor.systemGreen.withAlphaComponent(0.5)
+                    result.append(NSAttributedString(string: hunk.newText, attributes: applied))
+
+                case (.markup, .rejected):
+                    // A rejected insertion leaves nothing behind.
                     var kept = linked
                     kept[.underlineStyle] = NSUnderlineStyle.single.union(.patternDot).rawValue
                     kept[.underlineColor] = NSColor.secondaryLabelColor
                     result.append(NSAttributedString(string: hunk.oldText, attributes: kept))
-                } else {
-                    // A rejected insertion has no original text; show it faded and struck out.
-                    var skipped = linked
-                    skipped[.foregroundColor] = NSColor.tertiaryLabelColor
-                    skipped[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-                    result.append(NSAttributedString(string: visibleWhitespace(hunk.newText), attributes: skipped))
                 }
 
                 let range = NSRange(location: start, length: result.length - start)
                 hunkRanges[id] = range
-                if id == selectedHunkID {
+                if id == selectedHunkID, range.length > 0 {
                     result.addAttribute(
                         .backgroundColor,
                         value: NSColor.controlAccentColor.withAlphaComponent(0.2),
@@ -140,6 +161,7 @@ struct DiffTextView: NSViewRepresentable {
         struct RenderKey: Equatable {
             let diff: TextDiff
             let selectedHunkID: Int?
+            let mode: ReviewViewModel.DisplayMode
             let fontSize: CGFloat
         }
 
