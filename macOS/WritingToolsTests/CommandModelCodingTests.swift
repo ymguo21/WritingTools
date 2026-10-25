@@ -203,13 +203,13 @@ final class CommandModelCodingTests: XCTestCase {
         XCTAssertEqual(CommandModel.BuiltInID.concise.uuidString, "00000000-0001-0000-0000-000000000005")
         XCTAssertEqual(CommandModel.BuiltInID.summary.uuidString, "00000000-0001-0000-0000-000000000006")
         XCTAssertEqual(CommandModel.BuiltInID.keyPoints.uuidString, "00000000-0001-0000-0000-000000000007")
-        XCTAssertEqual(CommandModel.BuiltInID.grammarCheck.uuidString, "00000000-0001-0000-0000-000000000009")
         XCTAssertEqual(CommandModel.BuiltInID.table.uuidString, "00000000-0001-0000-0000-000000000008")
+        XCTAssertEqual(CommandModel.BuiltInID.grammarCheck.uuidString, "00000000-0001-0000-0000-000000000009")
     }
 
     func testDefaultCommandsCountAndAllBuiltIn() {
         let defaults = CommandModel.defaultCommands
-        XCTAssertEqual(defaults.count, 8)
+        XCTAssertEqual(defaults.count, 9)
         XCTAssertTrue(defaults.allSatisfy(\.isBuiltIn))
     }
 
