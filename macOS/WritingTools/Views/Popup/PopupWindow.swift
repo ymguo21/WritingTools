@@ -84,7 +84,7 @@ class PopupWindow: NSWindow {
     let editButtonHeight: CGFloat = 60
 
     // Snapshot values at the start to avoid reading changing state mid-calculation
-    let commands = appState.commandManager.commands
+    let commands = appState.commandManager.visibleCommands
     let totalCommands = commands.count
     let hasContent =
       !appState.selectedText.isEmpty
@@ -312,7 +312,7 @@ struct PopupWindowContentView: View {
       closeAction: closeAction
     )
     // Use SwiftUI's native onChange to observe state changes
-    .onChange(of: appState.commandManager.commands.count) { _, _ in
+    .onChange(of: appState.commandManager.visibleCommands.count) { _, _ in
       onSizeChange()
     }
     .onChange(of: viewModel.isEditMode) { _, _ in

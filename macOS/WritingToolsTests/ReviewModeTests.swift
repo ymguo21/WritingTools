@@ -117,6 +117,22 @@ final class ReviewModeTests: XCTestCase {
         ])
     }
 
+    func testTranslateIsInsertedAfterGrammarCheck() {
+        let custom = CommandModel(name: "Mine", prompt: "p", icon: "pencil")
+        let result = CommandManager.addingMissingBuiltIns(
+            to: [CommandModel.proofread, CommandModel.rewrite, custom],
+            from: CommandModel.builtInsAddedAfterFirstRelease,
+            deletedIds: []
+        )
+        XCTAssertEqual(result.map(\.id), [
+            CommandModel.BuiltInID.proofread,
+            CommandModel.BuiltInID.grammarCheck,
+            CommandModel.BuiltInID.translate,
+            CommandModel.BuiltInID.rewrite,
+            custom.id,
+        ])
+    }
+
     func testMissingBuiltInIsAppendedWhenPredecessorIsGone() {
         let custom = CommandModel(name: "Mine", prompt: "p", icon: "pencil")
         let result = CommandManager.addingMissingBuiltIns(

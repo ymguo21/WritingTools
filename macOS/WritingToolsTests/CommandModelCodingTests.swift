@@ -193,6 +193,74 @@ final class CommandModelCodingTests: XCTestCase {
         XCTAssertTrue(CommandModel.defaultCommands.contains { $0.id == CommandModel.BuiltInID.grammarCheck })
     }
 
+    func testTranslatePromptIsValidStructuredPrompt() {
+        let command = CommandModel.translate
+        XCTAssertNotNil(PromptStructure.from(jsonString: command.prompt))
+        XCTAssertTrue(command.useResponseWindow)
+        XCTAssertFalse(command.reviewChanges)
+        XCTAssertTrue(command.isBuiltIn)
+        XCTAssertTrue(command.prompt.contains(CommandModel.targetLanguagePlaceholder))
+        XCTAssertTrue(CommandModel.defaultCommands.contains { $0.id == CommandModel.BuiltInID.translate })
+    }
+
+    /// The prompt editor rewrites prompts through `PromptStructure`, so the
+    /// built-in prompts must only use fields it knows, or edits would drop them.
+    func testBuiltInPromptsSurvivePromptEditorRoundTrip() throws {
+        for command in [CommandModel.grammarCheck, CommandModel.translate] {
+            let structure = try XCTUnwrap(PromptStructure.from(jsonString: command.prompt), command.name)
+            let original = try JSONSerialization.jsonObject(with: Data(command.prompt.utf8)) as? NSDictionary
+            let roundTripped = try JSONSerialization.jsonObject(
+                with: Data(structure.toJSONString(pretty: false).utf8)
+            ) as? NSDictionary
+            XCTAssertEqual(original, roundTripped, command.name)
+        }
+    }
+
+    // MARK: - Hidden commands
+
+    func testIsHiddenDefaultsToFalseAndIsOnlyEncodedWhenSet() throws {
+        let visible = CommandModel(name: "A", prompt: "p", icon: "i")
+        XCTAssertFalse(visible.isHidden)
+        let visibleJSON = String(decoding: try JSONEncoder().encode(visible), as: UTF8.self)
+        XCTAssertFalse(visibleJSON.contains("isHidden"))
+
+        var hidden = visible
+        hidden.isHidden = true
+        let decoded = try JSONDecoder().decode(CommandModel.self, from: JSONEncoder().encode(hidden))
+        XCTAssertTrue(decoded.isHidden)
+    }
+
+    func testOldDataWithoutIsHiddenDecodesAsVisible() throws {
+        let json = #"{"id":"00000000-0000-0000-0000-000000000042","name":"Old","prompt":"p","icon":"i"}"#
+        let decoded = try JSONDecoder().decode(CommandModel.self, from: Data(json.utf8))
+        XCTAssertFalse(decoded.isHidden)
+    }
+
+    // MARK: - Translation target
+
+    func testTranslationTargetFollowsChineseCharacters() {
+        XCTAssertEqual(CommandModel.translationTarget(for: "我们提出了一种新方法。"), "English")
+        XCTAssertEqual(CommandModel.translationTarget(for: "我们 propose 一个新的 attention 机制"), "English")
+        XCTAssertEqual(CommandModel.translationTarget(for: "We fine-tune the model 在下游任务上."), "English")
+        XCTAssertEqual(CommandModel.translationTarget(for: "We fine-tune the pre-trained Transformer."), "Simplified Chinese")
+        XCTAssertEqual(CommandModel.translationTarget(for: "loss = criterion(logits, labels)  # 1e-4, 256"), "Simplified Chinese")
+        XCTAssertEqual(CommandModel.translationTarget(for: "Full-width punctuation alone，。"), "Simplified Chinese")
+    }
+
+    func testResolvedPromptFillsTargetLanguage() {
+        let translate = CommandModel.translate
+        let toEnglish = translate.resolvedPrompt(for: "我们在 ImageNet 上预训练模型。")
+        XCTAssertFalse(toEnglish.contains(CommandModel.targetLanguagePlaceholder))
+        XCTAssertTrue(toEnglish.contains("translate the input into English"))
+
+        let toChinese = translate.resolvedPrompt(for: "We pre-train the model on ImageNet.")
+        XCTAssertTrue(toChinese.contains("translate the input into Simplified Chinese"))
+        XCTAssertNotNil(PromptStructure.from(jsonString: toChinese))
+
+        let grammar = CommandModel.grammarCheck
+        XCTAssertEqual(grammar.resolvedPrompt(for: "我们"), grammar.prompt)
+    }
+
     // MARK: - Built-in IDs are stable
 
     func testBuiltInIDsAreStable() {
@@ -205,11 +273,12 @@ final class CommandModelCodingTests: XCTestCase {
         XCTAssertEqual(CommandModel.BuiltInID.keyPoints.uuidString, "00000000-0001-0000-0000-000000000007")
         XCTAssertEqual(CommandModel.BuiltInID.table.uuidString, "00000000-0001-0000-0000-000000000008")
         XCTAssertEqual(CommandModel.BuiltInID.grammarCheck.uuidString, "00000000-0001-0000-0000-000000000009")
+        XCTAssertEqual(CommandModel.BuiltInID.translate.uuidString, "00000000-0001-0000-0000-00000000000A")
     }
 
     func testDefaultCommandsCountAndAllBuiltIn() {
         let defaults = CommandModel.defaultCommands
-        XCTAssertEqual(defaults.count, 9)
+        XCTAssertEqual(defaults.count, 10)
         XCTAssertTrue(defaults.allSatisfy(\.isBuiltIn))
     }
 

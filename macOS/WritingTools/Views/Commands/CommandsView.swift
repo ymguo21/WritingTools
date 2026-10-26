@@ -11,7 +11,6 @@ struct CommandsView: View {
     @State private var editingCommand: CommandModel?
     @State private var newCommand = CommandModel(name: "", prompt: "", icon: "text.bubble")
     @State private var showingResetAlert = false
-    @State private var selectedTab = 0 // 0 for built-in, 1 for custom
     
     var body: some View {
         VStack(spacing: 0) {
@@ -34,55 +33,39 @@ struct CommandsView: View {
             }
             .padding()
             
-            // Tab switcher with improved styling
-            Picker("Command Type", selection: $selectedTab) {
-                Text("Built-in").tag(0)
-                Text("Custom").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.bottom, 8)
-            
             // Command list with section header
             VStack(alignment: .leading, spacing: 8) {
-                Text(selectedTab == 0 ? "Built-in Commands" : "Custom Commands")
+                Text("Checked commands appear in the popup. Drag to change their order.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
                     .padding(.top, 8)
-                
-                if selectedTab == 0 {
-                    builtInCommandsView
-                } else {
-                    customCommandsView
-                }
+
+                commandsListView
             }
-            
+
             Divider()
-            
+
             // Action buttons with enhanced styling
             HStack {
-                if selectedTab == 0 {
-                    Button(action: { showingResetAlert = true }) {
-                        Label("Reset to Defaults", systemImage: "arrow.counterclockwise")
-                            .font(.body)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .padding()
-                    .help("Reset all built-in commands to their original state, including restoring any that were deleted")
-                } else {
-                    Button(action: { isAddingNew = true }) {
-                        Label("Add Custom Command", systemImage: "plus.circle.fill")
-                            .font(.body)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .padding()
+                Button(action: { isAddingNew = true }) {
+                    Label("Add Custom Command", systemImage: "plus.circle.fill")
+                        .font(.body)
                 }
-                
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
                 Spacer()
+
+                Button(action: { showingResetAlert = true }) {
+                    Label("Reset to Defaults", systemImage: "arrow.counterclockwise")
+                        .font(.body)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .help("Reset all built-in commands to their original state, including restoring any that were deleted")
             }
+            .padding()
         }
         .frame(minWidth: 520, idealWidth: 600, maxWidth: 840, minHeight: 420, idealHeight: 500, maxHeight: 820)
         .windowBackground(useGradient: settings.useGradientTheme)
@@ -121,67 +104,33 @@ struct CommandsView: View {
         }
     }
     
-    var builtInCommandsView: some View {
+    var commandsListView: some View {
         List {
-            ForEach(commandManager.builtInCommands) { command in
+            ForEach(commandManager.commands) { command in
                 CommandRow(
                     command: command,
-                    onEdit: { command in editingCommand = command },
-                    onDelete: { command in commandManager.deleteCommand(command) }
-                )
-            }
-        }
-        .listStyle(.inset)
-        .overlay(
-            Group {
-                if commandManager.builtInCommands.isEmpty {
-                    VStack {
-                        Image(systemName: "questionmark.circle")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
-                        Text("No built-in commands")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        )
-    }
-    
-    var customCommandsView: some View {
-        List {
-            ForEach(commandManager.customCommands) { command in
-                CommandRow(
-                    command: command,
+                    onToggleVisibility: { isShown in
+                        commandManager.setHidden(!isShown, for: command)
+                    },
                     onEdit: { command in editingCommand = command },
                     onDelete: { command in commandManager.deleteCommand(command) }
                 )
             }
             .onMove { source, destination in
-                // Filter to only get custom commands, then apply the move
-                var customCommands = commandManager.customCommands
-                customCommands.move(fromOffsets: source, toOffset: destination)
-                
-                // Get the built-in commands
-                let builtInCommands = commandManager.builtInCommands
-                
-                // Recreate the full commands array with the new order
-                let newCommands = builtInCommands + customCommands
-                
-                // Update the manager using the public method
-                commandManager.replaceAllCommands(with: newCommands)
+                commandManager.moveCommand(fromOffsets: source, toOffset: destination)
             }
         }
         .listStyle(.inset)
         .overlay(
             Group {
-                if commandManager.customCommands.isEmpty {
+                if commandManager.commands.isEmpty {
                     VStack {
                         Image(systemName: "plus.circle")
                             .font(.largeTitle)
                             .foregroundStyle(.secondary)
-                        Text("No custom commands yet")
+                        Text("No commands")
                             .foregroundStyle(.secondary)
-                        Text("Add one to get started")
+                        Text("Add one, or reset to the defaults")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -193,6 +142,7 @@ struct CommandsView: View {
 
 struct CommandRow: View {
     let command: CommandModel
+    let onToggleVisibility: (Bool) -> Void
     let onEdit: (CommandModel) -> Void
     let onDelete: (CommandModel) -> Void
     
@@ -201,6 +151,20 @@ struct CommandRow: View {
     
     var body: some View {
         HStack(spacing: 16) {
+            Toggle(
+                "Show in popup",
+                isOn: Binding(
+                    get: { !command.isHidden },
+                    set: { onToggleVisibility($0) }
+                )
+            )
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+            .help(command.isHidden
+                  ? "Hidden from the popup. Its keyboard shortcut still works."
+                  : "Shown in the popup")
+            .accessibilityLabel("Show \(command.name) in popup")
+
             // Icon with consistent size and styling
             Image(systemName: command.icon)
                 .font(.title3)
@@ -214,6 +178,7 @@ struct CommandRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(command.name)
                     .font(.headline)
+                    .foregroundStyle(command.isHidden ? .secondary : .primary)
                 
                 Text(command.isBuiltIn ? "Built-in" : "Custom")
                     .font(.caption)
