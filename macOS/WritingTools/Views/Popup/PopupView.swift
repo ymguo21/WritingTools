@@ -197,7 +197,7 @@ struct PopupView: View {
   @ViewBuilder
   private var commandButtonsGrid: some View {
     let grid = LazyVGrid(columns: columns, spacing: 8) {
-      ForEach(appState.commandManager.commands) { command in
+      ForEach(appState.commandManager.visibleCommands) { command in
         CommandButton(
           command: command,
           isEditing: viewModel.isEditMode,

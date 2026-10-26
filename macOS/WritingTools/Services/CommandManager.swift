@@ -54,6 +54,15 @@ final class CommandManager {
         notifyCommandsChanged()
     }
     
+    /// Shows or hides a command in the popup. Its shortcut keeps working.
+    func setHidden(_ isHidden: Bool, for command: CommandModel) {
+        guard let index = commands.firstIndex(where: { $0.id == command.id }),
+              commands[index].isHidden != isHidden else { return }
+        commands[index].isHidden = isHidden
+        saveCommands()
+        notifyCommandsChanged()
+    }
+
     func moveCommand(fromOffsets source: IndexSet, toOffset destination: Int) {
         commands.move(fromOffsets: source, toOffset: destination)
         saveCommands()
@@ -73,6 +82,11 @@ final class CommandManager {
     
     // MARK: - Getters with filtering
     
+    /// Commands shown in the popup, in the user's order.
+    var visibleCommands: [CommandModel] {
+        commands.filter { !$0.isHidden }
+    }
+
     var builtInCommands: [CommandModel] {
         commands.filter { $0.isBuiltIn }
     }

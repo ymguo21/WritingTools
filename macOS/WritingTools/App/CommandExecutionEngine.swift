@@ -87,6 +87,8 @@ final class CommandExecutionEngine {
       throw error
     }
 
+    let systemPrompt = command.resolvedPrompt(for: input.userPrompt)
+
     if shouldReviewChanges {
       // Review windows run their own request, like response windows.
       appState.isProcessing = false
@@ -94,6 +96,7 @@ final class CommandExecutionEngine {
       openReviewWindow(
         command: command,
         provider: provider,
+        systemPrompt: systemPrompt,
         userPrompt: input.userPrompt,
         source: source
       )
@@ -110,10 +113,10 @@ final class CommandExecutionEngine {
         title: command.name,
         selectedText: selectedText,
         provider: provider,
-        systemPrompt: command.prompt,
+        systemPrompt: systemPrompt,
         userPrompt: input.userPrompt,
         images: input.images,
-        continuationSystemPrompt: command.prompt,
+        continuationSystemPrompt: systemPrompt,
         source: source
       )
       return .openedResponseWindow
@@ -122,7 +125,7 @@ final class CommandExecutionEngine {
     defer { appState.isProcessing = false }
 
     var result = try await provider.processText(
-      systemPrompt: command.prompt,
+      systemPrompt: systemPrompt,
       userPrompt: input.userPrompt,
       images: input.images,
       streaming: false
@@ -359,6 +362,7 @@ final class CommandExecutionEngine {
   private func openReviewWindow(
     command: CommandModel,
     provider: any AIProvider,
+    systemPrompt: String,
     userPrompt: String,
     source: ExecutionSource
   ) {
@@ -370,7 +374,7 @@ final class CommandExecutionEngine {
       originalAttributedText: command.effectivePreserveFormatting ? appState.selectedAttributedText : nil,
       targetApplication: appState.previousApplication,
       provider: provider,
-      systemPrompt: command.prompt,
+      systemPrompt: systemPrompt,
       userPrompt: userPrompt,
       explainEnabled: command.effectiveExplainEdits
     )
