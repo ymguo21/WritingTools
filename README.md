@@ -96,11 +96,18 @@ Writing Tools works well on x11. On Wayland, there are a few caveats:
 
 <a id="macos"></a>
 ### 🍎 macOS
-The macOS version is a **native Swift port**, developed by [Arya Mirsepasi](https://github.com/Aryamirsepasi). View the [README inside the macOS folder](https://github.com/theJayTea/WritingTools/tree/main/macOS) to learn more.
+The macOS version is a **native Swift port**, developed by [Arya Mirsepasi](https://github.com/Aryamirsepasi). View the [README inside the macOS folder](macOS/README.md) to learn more.
+
+**New in this fork (macOS):**
+- **Review Mode**: see every change word by word, Grammarly-style, and accept or reject each one before it is applied. Explanations of the edits are available on request.
+- **Grammar Check**: an English editor for machine-learning papers and code that also translates Chinese fragments into English.
+- **Translate**: Chinese or mixed text into English, everything else into Simplified Chinese, keeping technical terms.
+- **Choose and order commands**: hide commands from the popup and drag them into your own order.
 
 To install it:
-1. Go to the [Releases](https://github.com/theJayTea/WritingTools/releases) page and download the latest macOS `.dmg` file.
-2. Open the `.dmg` file, also open a Finder Window, and drag the `writing-tools.app` into the Applications folder. That's it!
+1. Go to the [Releases](https://github.com/ymguo21/WritingTools/releases) page and download the latest `WritingTools-<version>.zip`.
+2. Unzip it and drag `WritingTools.app` into the Applications folder.
+3. The build is not notarized, so the first launch is blocked: open **System Settings → Privacy & Security** and click **Open Anyway**.
 
 **Note:** macOS 14 or later is required due to accessibility API requirements.
 

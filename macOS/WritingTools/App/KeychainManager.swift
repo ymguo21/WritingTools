@@ -10,7 +10,7 @@ import Security
 
 actor KeychainManager {
     static let shared = KeychainManager()
-    private static let serviceName = "com.aryamirsepasi.writing-tools"
+    private static let serviceName = "com.ymguo21.writing-tools"
     private let customProviderKeyPrefix = "custom_provider_api_key_"
 
     private init() {}
