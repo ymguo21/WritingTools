@@ -118,12 +118,7 @@ struct OnboardingPermissionsStep: View {
         Spacer()
 
         Button("Open Privacy & Security") {
-          if let url = URL(
-            string:
-              "x-apple.systemsettings:com.apple.settings.PrivacySecurity.extension"
-          ) {
-            NSWorkspace.shared.open(url)
-          }
+          OnboardingPermissionsHelper.openPrivacySettings()
         }
         .buttonStyle(.link)
         .accessibilityLabel("Open Privacy and Security settings")
@@ -144,12 +139,23 @@ struct OnboardingPermissionsHelper {
 
     Task { @MainActor in
       try? await Task.sleep(for: .milliseconds(200))
-      if let url = URL(
-        string:
-          "x-apple.systemsettings:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
-      ) {
-        NSWorkspace.shared.open(url)
-      }
+      openPrivacySettings(anchor: "Privacy_Accessibility")
+    }
+  }
+
+  /// Opens System Settings at Privacy & Security, optionally at a pane such
+  /// as "Privacy_ScreenCapture". Uses the `x-apple.systempreferences` scheme,
+  /// which System Settings still handles on macOS 27 (unlike
+  /// `x-apple.systemsettings`), and falls back to opening the app.
+  @MainActor
+  static func openPrivacySettings(anchor: String? = nil) {
+    let base = "x-apple.systempreferences:com.apple.preference.security"
+    let workspace = NSWorkspace.shared
+    if let url = URL(string: anchor.map { "\(base)?\($0)" } ?? base),
+       workspace.urlForApplication(toOpen: url) != nil {
+      workspace.open(url)
+    } else if let appURL = workspace.urlForApplication(withBundleIdentifier: "com.apple.systempreferences") {
+      workspace.openApplication(at: appURL, configuration: NSWorkspace.OpenConfiguration())
     }
   }
 
