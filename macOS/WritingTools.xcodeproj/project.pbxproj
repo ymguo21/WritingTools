@@ -273,7 +273,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.aryamirsepasi.writing-tools.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ymguo21.writing-tools.tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WritingTools.app/Contents/MacOS/WritingTools";
@@ -421,7 +421,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 73;
+				CURRENT_PROJECT_VERSION = 74;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"WritingTools/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
@@ -451,8 +451,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 6.1;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.aryamirsepasi.writing-tools";
+				MARKETING_VERSION = 6.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ymguo21.writing-tools";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = writingtoolsID;
@@ -473,7 +473,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 73;
+				CURRENT_PROJECT_VERSION = 74;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"WritingTools/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
@@ -503,8 +503,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 6.1;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.aryamirsepasi.writing-tools";
+				MARKETING_VERSION = 6.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ymguo21.writing-tools";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = writingtoolsID;
@@ -528,7 +528,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.aryamirsepasi.writing-tools.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ymguo21.writing-tools.tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WritingTools.app/Contents/MacOS/WritingTools";

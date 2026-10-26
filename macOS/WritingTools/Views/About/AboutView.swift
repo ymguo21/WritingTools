@@ -5,7 +5,7 @@ private enum AboutURLs {
     static let blissAI = URL(string: "https://play.google.com/store/apps/details?id=com.jesai.blissai")
     static let emailArya = URL(string: "mailto:developer@aryamirsepasi.com")
     static let proseKey = URL(string: "https://apps.apple.com/us/app/prosekey-ai/id6741180175")
-    static let releases = URL(string: "https://github.com/theJayTea/WritingTools/releases")
+    static let releases = URL(string: "https://github.com/ymguo21/WritingTools/releases")
 }
 
 struct AboutView: View {
