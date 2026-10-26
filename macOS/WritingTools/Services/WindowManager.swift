@@ -27,6 +27,8 @@ class WindowManager: NSObject, NSWindowDelegate {
     }
 
     private var responseWindows = NSHashTable<ResponseWindow>.weakObjects()
+    // Strong references: nothing else retains a review window while it is open.
+    private var reviewWindows: [ReviewWindow] = []
 
     // MARK: - Response Windows
 
@@ -55,6 +57,20 @@ class WindowManager: NSObject, NSWindowDelegate {
 
     func removeResponseWindow(_ window: ResponseWindow) {
         responseWindows.remove(window)
+    }
+
+    // MARK: - Review Windows
+
+    func addReviewWindow(_ window: ReviewWindow) {
+        if !reviewWindows.contains(where: { $0 === window }) {
+            reviewWindows.append(window)
+            window.delegate = self
+        }
+        bringWindowToFront(window)
+    }
+
+    func removeReviewWindow(_ window: ReviewWindow) {
+        reviewWindows.removeAll { $0 === window }
     }
 
     // MARK: - Popup Window
@@ -221,6 +237,9 @@ class WindowManager: NSObject, NSWindowDelegate {
             }
         } else if let responseWindow = window as? ResponseWindow {
             removeResponseWindow(responseWindow)
+        } else if let reviewWindow = window as? ReviewWindow {
+            reviewWindow.viewModel.cancel()
+            removeReviewWindow(reviewWindow)
         } else if window === onboardingWindow {
             onboardingWindow = nil
         } else if window === settingsWindow {
@@ -259,6 +278,7 @@ class WindowManager: NSObject, NSWindowDelegate {
         }
 
         windows.append(contentsOf: responseWindows.allObjects)
+        windows.append(contentsOf: reviewWindows)
         return windows
     }
 
@@ -266,6 +286,7 @@ class WindowManager: NSObject, NSWindowDelegate {
         onboardingWindow = nil
         settingsWindow = nil
         responseWindows.removeAllObjects()
+        reviewWindows.removeAll()
         clearPopupDismissSuppressionState()
         popupWindow = nil
     }

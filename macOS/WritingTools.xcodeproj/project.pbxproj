@@ -606,7 +606,7 @@
 			repositoryURL = "https://github.com/LiYanan2004/MarkdownView.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.5.2;
+				minimumVersion = 3.0.0;
 			};
 		};
 		42D870F12EC4D1C5001B0626 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {

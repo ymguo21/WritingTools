@@ -43,6 +43,7 @@ final class CommandExecutionEngine {
   enum ExecutionOutcome {
     case completedInline
     case openedResponseWindow
+    case openedReviewWindow
     case skippedBecauseBusy
   }
 
@@ -70,6 +71,7 @@ final class CommandExecutionEngine {
     let input: CommandExecutionInput
     let provider: any AIProvider
     let shouldUseResponseWindow: Bool
+    let shouldReviewChanges: Bool
 
     do {
       try await prepareSelectionIfNeeded(for: source, commandName: command.name)
@@ -77,9 +79,25 @@ final class CommandExecutionEngine {
       input = try await appState.resolveCommandInput(mode: .textOrImagesWithOCRFallback)
       provider = appState.getProvider(for: command)
       shouldUseResponseWindow = command.useResponseWindow || input.source == .imageOCRFallback
+      // Reviewing a diff needs an original text to compare against, so OCR
+      // input keeps using the response window.
+      shouldReviewChanges = command.reviewChanges && input.source == .selectedText
     } catch {
       appState.isProcessing = false
       throw error
+    }
+
+    if shouldReviewChanges {
+      // Review windows run their own request, like response windows.
+      appState.isProcessing = false
+
+      openReviewWindow(
+        command: command,
+        provider: provider,
+        userPrompt: input.userPrompt,
+        source: source
+      )
+      return .openedReviewWindow
     }
 
     if shouldUseResponseWindow {
@@ -336,6 +354,34 @@ final class CommandExecutionEngine {
     }
 
     WindowManager.shared.addResponseWindow(window)
+  }
+
+  private func openReviewWindow(
+    command: CommandModel,
+    provider: any AIProvider,
+    userPrompt: String,
+    source: ExecutionSource
+  ) {
+    // Snapshot the selection and target app now: they live on AppState and
+    // would be overwritten if another command runs while this one is reviewed.
+    let viewModel = ReviewViewModel(
+      title: command.name,
+      originalText: appState.selectedText,
+      originalAttributedText: command.effectivePreserveFormatting ? appState.selectedAttributedText : nil,
+      targetApplication: appState.previousApplication,
+      provider: provider,
+      systemPrompt: command.prompt,
+      userPrompt: userPrompt,
+      explainEnabled: command.effectiveExplainEdits
+    )
+    let window = ReviewWindow(viewModel: viewModel)
+
+    if source == .popup {
+      WindowManager.shared.dismissPopup(clearImages: false)
+    }
+
+    WindowManager.shared.addReviewWindow(window)
+    viewModel.start()
   }
 
   private static let customInstructionSystemPrompt = """

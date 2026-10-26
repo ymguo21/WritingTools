@@ -97,8 +97,13 @@ final class CommandManager {
         if let data = UserDefaults.standard.data(forKey: saveKey) {
             do {
                 let decoded = try JSONDecoder().decode([CommandModel].self, from: data)
-                self.commands = decoded
-                if containsLegacyCustomProviderKey(in: data) {
+                let withNewBuiltIns = Self.addingMissingBuiltIns(
+                    to: decoded,
+                    from: CommandModel.builtInsAddedAfterFirstRelease,
+                    deletedIds: deletedDefaultIds
+                )
+                self.commands = withNewBuiltIns
+                if containsLegacyCustomProviderKey(in: data) || withNewBuiltIns.count != decoded.count {
                     saveCommands()
                     notifyCommandsChanged()
                 }
@@ -149,6 +154,33 @@ final class CommandManager {
     }
     
     // MARK: - Default Commands
+
+    /// Adds built-in commands introduced after a user's command list was first
+    /// created, unless the user already has them or deleted them.
+    /// Each one is placed after the command that precedes it in
+    /// `CommandModel.defaultCommands`, or at the end if that one is missing.
+    nonisolated static func addingMissingBuiltIns(
+        to commands: [CommandModel],
+        from newBuiltIns: [CommandModel],
+        deletedIds: Set<UUID>
+    ) -> [CommandModel] {
+        var result = commands
+        let defaultOrder = CommandModel.defaultCommands.map(\.id)
+
+        for builtIn in newBuiltIns {
+            guard !deletedIds.contains(builtIn.id),
+                  !result.contains(where: { $0.id == builtIn.id }) else { continue }
+
+            var insertIndex = result.endIndex
+            if let orderIndex = defaultOrder.firstIndex(of: builtIn.id), orderIndex > 0,
+               let predecessorIndex = result.firstIndex(where: { $0.id == defaultOrder[orderIndex - 1] }) {
+                insertIndex = predecessorIndex + 1
+            }
+            result.insert(builtIn, at: insertIndex)
+        }
+
+        return result
+    }
     
     private func initializeDefaultCommands() {
         // Get the default commands and filter out any that are in the deleted list
