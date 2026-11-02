@@ -114,12 +114,23 @@ struct ReviewView: View {
     private var content: some View {
         switch viewModel.phase {
         case .checking:
-            VStack(spacing: 12) {
-                ProgressView()
-                Text("Checking…")
-                    .foregroundStyle(.secondary)
+            if viewModel.draft.isEmpty {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Checking…")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // The edits are marked once the whole reply has arrived.
+                ScrollView {
+                    Text(viewModel.draft)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .failed(let message):
             VStack(spacing: 12) {

@@ -238,7 +238,8 @@ final class OpenAIProvider: AIProvider {
         request.httpMethod = "POST"
         request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60
+        // The timeout counts silence, and a reasoning model can think for a while before its first token.
+        request.timeoutInterval = 180
         
         var messages: [[String: Any]] = []
         if let systemPrompt = systemPrompt {
