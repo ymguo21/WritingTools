@@ -123,7 +123,7 @@ If you find value in the original work, please consider supporting its authors:
 
 **Libraries**: [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) by Sindre Sorhus, [MLX Swift](https://github.com/ml-explore/mlx-swift) for on-device models, [MarkdownView](https://github.com/LiYanan2004/MarkdownView) and SwiftMath for rendering.
 
-**This fork**: [ymguo21](https://github.com/ymguo21), developed with [Claude Code](https://claude.com/claude-code).
+**This fork**: [Yaming GUO](https://github.com/ymguo21).
 
 ## Contributing
 
@@ -132,3 +132,9 @@ Issues and pull requests are welcome at [ymguo21/WritingTools](https://github.co
 ## License
 
 Distributed under the GNU General Public License v3.0, like the original project. See [LICENSE](LICENSE).
+
+**Modification notice.** This is a modified version of Writing Tools. The macOS app was created by Arya Mirsepasi on top of the project by Jesai Tarun, and Yaming GUO has modified it since 25 October 2026. Every change, with its date and author, is in the [git history](https://github.com/ymguo21/WritingTools/commits/main).
+
+**Source code.** The complete source of each release is the matching tag of this repository, for example [v6.3](https://github.com/ymguo21/WritingTools/tree/v6.3).
+
+**Third-party software.** The app is built with open-source Swift packages under their own licenses; their notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
