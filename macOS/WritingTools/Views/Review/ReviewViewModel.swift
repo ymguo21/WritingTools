@@ -33,6 +33,9 @@ final class ReviewViewModel {
 
     private(set) var phase: Phase = .checking
     private(set) var diff: TextDiff?
+    /// The reply as far as it has arrived. The diff needs the whole reply, so
+    /// this is only shown while checking.
+    private(set) var draft = ""
     var selectedHunkID: Int?
     var displayMode: DisplayMode = .markup
     private(set) var explainingHunkIDs: Set<Int> = []
@@ -87,10 +90,13 @@ final class ReviewViewModel {
 
     // MARK: - Checking
 
+    private static let draftFlushInterval: Duration = .milliseconds(80)
+
     func start() {
         requestTask?.cancel()
         phase = .checking
         diff = nil
+        draft = ""
         selectedHunkID = nil
         displayMode = .markup
         followUps = []
@@ -100,13 +106,24 @@ final class ReviewViewModel {
             defer { self.requestTask = nil }
 
             do {
-                let output = try await provider.processText(
+                var output = ""
+                var lastFlush = ContinuousClock.now
+
+                try await provider.processTextStreaming(
                     systemPrompt: systemPrompt,
                     userPrompt: userPrompt,
-                    images: [],
-                    streaming: false
-                )
+                    images: []
+                ) { [weak self] chunk in
+                    guard let self else { return }
+                    output += chunk
+                    let now = ContinuousClock.now
+                    if now - lastFlush >= Self.draftFlushInterval {
+                        self.draft = output
+                        lastFlush = now
+                    }
+                }
                 try Task.checkCancellation()
+                draft = ""
 
                 if output.trimmingCharacters(in: .whitespacesAndNewlines) == "ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST" {
                     phase = .failed(String(localized: "The selected text couldn't be processed by this command."))
