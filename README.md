@@ -102,6 +102,8 @@ The macOS version is a **native Swift port**, developed by [Arya Mirsepasi](http
 - **Review Mode**: see every change word by word, Grammarly-style, and accept or reject each one before it is applied. Explanations of the edits are available on request.
 - **Grammar Check**: an English editor for machine-learning papers and code that also translates Chinese fragments into English.
 - **Translate**: Chinese or mixed text into English, everything else into Simplified Chinese, keeping technical terms.
+- **Formula OCR**: drag a box around a formula on screen and get LaTeX Markdown, with a rendered preview and a Copy button.
+- **Screenshot Translate**: drag a box around text on screen and see the recognized text next to its translation.
 - **Choose and order commands**: hide commands from the popup and drag them into your own order.
 
 To install it:
