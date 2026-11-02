@@ -29,6 +29,8 @@ class WindowManager: NSObject, NSWindowDelegate {
     private var responseWindows = NSHashTable<ResponseWindow>.weakObjects()
     // Strong references: nothing else retains a review window while it is open.
     private var reviewWindows: [ReviewWindow] = []
+    private var formulaWindows: [FormulaWindow] = []
+    private var screenTranslationWindows: [ScreenTranslationWindow] = []
 
     // MARK: - Response Windows
 
@@ -71,6 +73,34 @@ class WindowManager: NSObject, NSWindowDelegate {
 
     func removeReviewWindow(_ window: ReviewWindow) {
         reviewWindows.removeAll { $0 === window }
+    }
+
+    // MARK: - Formula Windows
+
+    func addFormulaWindow(_ window: FormulaWindow) {
+        if !formulaWindows.contains(where: { $0 === window }) {
+            formulaWindows.append(window)
+            window.delegate = self
+        }
+        bringWindowToFront(window)
+    }
+
+    func removeFormulaWindow(_ window: FormulaWindow) {
+        formulaWindows.removeAll { $0 === window }
+    }
+
+    // MARK: - Screen Translation Windows
+
+    func addScreenTranslationWindow(_ window: ScreenTranslationWindow) {
+        if !screenTranslationWindows.contains(where: { $0 === window }) {
+            screenTranslationWindows.append(window)
+            window.delegate = self
+        }
+        bringWindowToFront(window)
+    }
+
+    func removeScreenTranslationWindow(_ window: ScreenTranslationWindow) {
+        screenTranslationWindows.removeAll { $0 === window }
     }
 
     // MARK: - Popup Window
@@ -240,6 +270,12 @@ class WindowManager: NSObject, NSWindowDelegate {
         } else if let reviewWindow = window as? ReviewWindow {
             reviewWindow.viewModel.cancel()
             removeReviewWindow(reviewWindow)
+        } else if let formulaWindow = window as? FormulaWindow {
+            formulaWindow.viewModel.cancel()
+            removeFormulaWindow(formulaWindow)
+        } else if let translationWindow = window as? ScreenTranslationWindow {
+            translationWindow.viewModel.cancel()
+            removeScreenTranslationWindow(translationWindow)
         } else if window === onboardingWindow {
             onboardingWindow = nil
         } else if window === settingsWindow {
@@ -279,6 +315,8 @@ class WindowManager: NSObject, NSWindowDelegate {
 
         windows.append(contentsOf: responseWindows.allObjects)
         windows.append(contentsOf: reviewWindows)
+        windows.append(contentsOf: formulaWindows)
+        windows.append(contentsOf: screenTranslationWindows)
         return windows
     }
 
@@ -287,6 +325,8 @@ class WindowManager: NSObject, NSWindowDelegate {
         settingsWindow = nil
         responseWindows.removeAllObjects()
         reviewWindows.removeAll()
+        formulaWindows.removeAll()
+        screenTranslationWindows.removeAll()
         clearPopupDismissSuppressionState()
         popupWindow = nil
     }

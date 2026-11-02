@@ -128,6 +128,8 @@ final class ReviewModeTests: XCTestCase {
             CommandModel.BuiltInID.proofread,
             CommandModel.BuiltInID.grammarCheck,
             CommandModel.BuiltInID.translate,
+            CommandModel.BuiltInID.formulaOCR,
+            CommandModel.BuiltInID.screenshotTranslate,
             CommandModel.BuiltInID.rewrite,
             custom.id,
         ])

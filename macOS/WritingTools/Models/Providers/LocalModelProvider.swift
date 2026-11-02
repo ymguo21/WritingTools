@@ -116,6 +116,8 @@ class LocalModelProvider {
     private var isUsingVisionModel: Bool {
         selectedModelType?.isVisionModel ?? false
     }
+
+    var sendsImagesToModel: Bool { isUsingVisionModel }
     
     private func cacheKey(for config: ModelConfiguration) -> String {
         // Use the stable `name` property provided by MLXLMCommon rather than

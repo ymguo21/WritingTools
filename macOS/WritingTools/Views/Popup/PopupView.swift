@@ -116,7 +116,7 @@ struct PopupView: View {
         }
       }
 
-      if !appState.selectedText.isEmpty || !appState.selectedImages.isEmpty {
+      if !popupCommands.isEmpty {
         commandButtonsGrid
           .padding(.horizontal, 16)
       }
@@ -194,10 +194,19 @@ struct PopupView: View {
 
   // MARK: - Command Buttons Grid
 
+  /// Without a selection only the commands that capture the screen themselves can run.
+  private var popupCommands: [CommandModel] {
+    let commands = appState.commandManager.visibleCommands
+    if !appState.selectedText.isEmpty || !appState.selectedImages.isEmpty {
+      return commands
+    }
+    return commands.filter { $0.inputSource == .screenRegion }
+  }
+
   @ViewBuilder
   private var commandButtonsGrid: some View {
     let grid = LazyVGrid(columns: columns, spacing: 8) {
-      ForEach(appState.commandManager.visibleCommands) { command in
+      ForEach(popupCommands) { command in
         CommandButton(
           command: command,
           isEditing: viewModel.isEditMode,

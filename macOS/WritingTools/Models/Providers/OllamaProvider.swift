@@ -46,6 +46,8 @@ private struct GenerateChunk: Decodable {
 @MainActor
 @Observable
 final class OllamaProvider: AIProvider {
+    var sendsImagesToModel: Bool { AppSettings.shared.ollamaImageMode == .ollama }
+
     var isProcessing = false
     private var config: OllamaConfig
     private var activeTask: Task<Void, any Error>?

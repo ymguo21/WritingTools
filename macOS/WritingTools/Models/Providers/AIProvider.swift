@@ -21,10 +21,16 @@ protocol AIProvider {
 
     // Cancel ongoing requests
     func cancel()
+
+    /// Whether images reach the model as images. Some providers turn them into
+    /// OCR text instead, which cannot represent a formula.
+    var sendsImagesToModel: Bool { get }
 }
 
 // Default implementation for providers that don't support streaming
 extension AIProvider {
+    var sendsImagesToModel: Bool { true }
+
     func processTextStreaming(
         systemPrompt: String?,
         userPrompt: String,
