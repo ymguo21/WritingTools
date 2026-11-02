@@ -8,6 +8,8 @@ enum CommandExecutionEngineError: LocalizedError {
   case noNewCopiedContent(commandName: String)
   case emptySelection(commandName: String)
   case customProviderConfigurationIncomplete(commandName: String, missingFields: [String])
+  case screenRecordingNotGranted
+  case imageInputUnsupported(commandName: String)
 
   var errorDescription: String? {
     switch self {
@@ -22,6 +24,10 @@ enum CommandExecutionEngineError: LocalizedError {
     case .customProviderConfigurationIncomplete(let commandName, let missingFields):
       let fieldList = missingFields.joined(separator: ", ")
       return "Custom provider for '\(commandName)' is incomplete. Missing: \(fieldList). Update the command's custom provider settings."
+    case .screenRecordingNotGranted:
+      return ScreenRegionCaptureError.permissionDenied.localizedDescription
+    case .imageInputUnsupported(let commandName):
+      return "'\(commandName)' needs a model that reads images directly, but the current provider turns images into text. Choose a vision-capable model for this command."
     }
   }
 
@@ -44,6 +50,9 @@ final class CommandExecutionEngine {
     case completedInline
     case openedResponseWindow
     case openedReviewWindow
+    case openedFormulaWindow
+    case openedScreenTranslationWindow
+    case cancelled
     case skippedBecauseBusy
   }
 
@@ -64,6 +73,14 @@ final class CommandExecutionEngine {
     guard !appState.isProcessing else {
       logger.debug("Command ignored because a request is already in progress.")
       return .skippedBecauseBusy
+    }
+
+    if command.inputSource == .screenRegion {
+      return try await executeScreenRegionCommand(
+        command,
+        source: source,
+        closePopup: closePopupOnInlineCompletion
+      )
     }
 
     appState.isProcessing = true
@@ -229,6 +246,81 @@ final class CommandExecutionEngine {
     }
 
     return .completedInline
+  }
+
+  /// Runs a command on a region of the screen that the user drags out, instead
+  /// of on the selected text.
+  private func executeScreenRegionCommand(
+    _ command: CommandModel,
+    source: ExecutionSource,
+    closePopup: (() -> Void)?
+  ) async throws -> ExecutionOutcome {
+    // Everything that can fail is checked before the popup closes, so the
+    // popup is still there to show the error.
+    try validateCustomProviderConfiguration(for: command)
+    let provider = appState.getProvider(for: command)
+    guard provider.sendsImagesToModel else {
+      throw CommandExecutionEngineError.imageInputUnsupported(commandName: command.name)
+    }
+    guard ScreenRegionCapture.ensurePermission() else {
+      throw CommandExecutionEngineError.screenRecordingNotGranted
+    }
+
+    appState.isProcessing = true
+    defer { appState.isProcessing = false }
+
+    if source == .popup {
+      // The popup would otherwise be in the way of the selection.
+      closePopup?()
+      try? await Task.sleep(for: .milliseconds(200))
+    }
+
+    let image: Data?
+    do {
+      image = try await ScreenRegionCapture.captureRegion()
+    } catch {
+      logger.error("Screen capture failed: \(error.localizedDescription)")
+      presentCaptureFailure(error)
+      return .cancelled
+    }
+    guard let image else { return .cancelled }
+
+    switch command.screenRegionOutput {
+    case .formula:
+      let viewModel = FormulaViewModel(
+        title: command.name,
+        imageData: image,
+        provider: provider,
+        systemPrompt: command.prompt
+      )
+      WindowManager.shared.addFormulaWindow(FormulaWindow(viewModel: viewModel))
+      viewModel.start()
+      return .openedFormulaWindow
+    case .translation:
+      // Text stays legible well below full retina size, and the request is much smaller.
+      let scaled = await Task.detached(priority: .userInitiated) {
+        ScreenshotImage.downscaled(image)
+      }.value
+      let viewModel = ScreenTranslationViewModel(
+        title: command.name,
+        imageData: scaled,
+        provider: provider,
+        systemPrompt: command.prompt
+      )
+      WindowManager.shared.addScreenTranslationWindow(ScreenTranslationWindow(viewModel: viewModel))
+      viewModel.start()
+      return .openedScreenTranslationWindow
+    }
+  }
+
+  private func presentCaptureFailure(_ error: Error) {
+    let alert = NSAlert()
+    alert.messageText = "Capture Failed"
+    alert.informativeText = error.localizedDescription
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: "OK")
+    NSApp.activate()
+    alert.runModal()
   }
 
   private func prepareSelectionIfNeeded(

@@ -143,7 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     source: .hotkey
                 )
             } catch let error as CommandExecutionEngineError {
-                self.handleCommandExecutionError(error)
+                self.handleCommandExecutionError(error, commandName: command.name)
             } catch {
                 logger.error("Error processing command \(command.name): \(error.localizedDescription)")
                 await self.presentCommandErrorAlert(commandName: command.name, error: error)
@@ -237,6 +237,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let window = PopupWindow(appState: self.appState)
             if !capture.text.isEmpty || !capture.images.isEmpty {
                 window.setContentSize(NSSize(width: 400, height: 400))
+            } else if self.appState.commandManager.visibleCommands.contains(where: { $0.inputSource == .screenRegion }) {
+                // Room for the screen-region command buttons under the instruction field.
+                window.setContentSize(NSSize(width: 400, height: 180))
             } else {
                 window.setContentSize(NSSize(width: 400, height: 100))
             }
@@ -248,7 +251,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func handleCommandExecutionError(_ error: CommandExecutionEngineError) {
+    private func handleCommandExecutionError(_ error: CommandExecutionEngineError, commandName: String) {
         switch error {
         case .captureInProgress:
             logger.debug("Clipboard capture skipped because another operation is in progress")
@@ -265,6 +268,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 Missing fields: \(missingFields.joined(separator: ", "))
                 """
             )
+        case .screenRecordingNotGranted, .imageInputUnsupported:
+            // Nothing is on screen when a shortcut runs, so say why it did nothing.
+            logger.warning("Command could not start: \(error.localizedDescription)")
+            Task { @MainActor in
+                await self.presentCommandErrorAlert(commandName: commandName, error: error)
+            }
         }
     }
 

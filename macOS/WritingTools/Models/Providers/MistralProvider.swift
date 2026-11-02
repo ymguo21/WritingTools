@@ -29,6 +29,9 @@ enum MistralModel: String, CaseIterable {
 @MainActor
 @Observable
 final class MistralProvider: AIProvider {
+    // Images are replaced by their OCR text before the request is sent.
+    var sendsImagesToModel: Bool { false }
+
     var isProcessing = false
     private var config: MistralConfig
     private var activeTask: Task<Void, any Error>?

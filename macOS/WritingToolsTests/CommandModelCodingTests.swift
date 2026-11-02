@@ -206,7 +206,7 @@ final class CommandModelCodingTests: XCTestCase {
     /// The prompt editor rewrites prompts through `PromptStructure`, so the
     /// built-in prompts must only use fields it knows, or edits would drop them.
     func testBuiltInPromptsSurvivePromptEditorRoundTrip() throws {
-        for command in [CommandModel.grammarCheck, CommandModel.translate] {
+        for command in [CommandModel.grammarCheck, CommandModel.translate, CommandModel.formulaOCR, CommandModel.screenshotTranslate] {
             let structure = try XCTUnwrap(PromptStructure.from(jsonString: command.prompt), command.name)
             let original = try JSONSerialization.jsonObject(with: Data(command.prompt.utf8)) as? NSDictionary
             let roundTripped = try JSONSerialization.jsonObject(
@@ -214,6 +214,56 @@ final class CommandModelCodingTests: XCTestCase {
             ) as? NSDictionary
             XCTAssertEqual(original, roundTripped, command.name)
         }
+    }
+
+    // MARK: - Input source
+
+    func testInputSourceDefaultsToSelectionAndIsOnlyEncodedWhenSet() throws {
+        let plain = CommandModel(name: "A", prompt: "p", icon: "i")
+        XCTAssertEqual(plain.inputSource, .selection)
+        let plainJSON = String(decoding: try JSONEncoder().encode(plain), as: UTF8.self)
+        XCTAssertFalse(plainJSON.contains("inputSource"))
+
+        let capture = CommandModel(name: "B", prompt: "p", icon: "i", inputSource: .screenRegion)
+        let data = try JSONEncoder().encode(capture)
+        XCTAssertTrue(String(decoding: data, as: UTF8.self).contains("inputSource"))
+        XCTAssertEqual(try JSONDecoder().decode(CommandModel.self, from: data).inputSource, .screenRegion)
+    }
+
+    func testFormulaOCRIsAScreenRegionBuiltIn() {
+        let command = CommandModel.formulaOCR
+        XCTAssertNotNil(PromptStructure.from(jsonString: command.prompt))
+        XCTAssertEqual(command.inputSource, .screenRegion)
+        XCTAssertTrue(command.isBuiltIn)
+        XCTAssertFalse(command.reviewChanges)
+        XCTAssertTrue(CommandModel.defaultCommands.contains { $0.id == CommandModel.BuiltInID.formulaOCR })
+        XCTAssertTrue(CommandModel.builtInsAddedAfterFirstRelease.contains { $0.id == CommandModel.BuiltInID.formulaOCR })
+    }
+
+    func testScreenRegionOutputDefaultsToFormulaAndIsOnlyEncodedWhenSet() throws {
+        let plain = CommandModel(name: "A", prompt: "p", icon: "i", inputSource: .screenRegion)
+        XCTAssertEqual(plain.screenRegionOutput, .formula)
+        let plainJSON = String(decoding: try JSONEncoder().encode(plain), as: UTF8.self)
+        XCTAssertFalse(plainJSON.contains("screenRegionOutput"))
+
+        let translation = CommandModel(
+            name: "B", prompt: "p", icon: "i", inputSource: .screenRegion, screenRegionOutput: .translation
+        )
+        let data = try JSONEncoder().encode(translation)
+        XCTAssertTrue(String(decoding: data, as: UTF8.self).contains("screenRegionOutput"))
+        XCTAssertEqual(try JSONDecoder().decode(CommandModel.self, from: data).screenRegionOutput, .translation)
+    }
+
+    func testScreenshotTranslateIsAScreenRegionBuiltIn() {
+        let command = CommandModel.screenshotTranslate
+        XCTAssertNotNil(PromptStructure.from(jsonString: command.prompt))
+        XCTAssertEqual(command.inputSource, .screenRegion)
+        XCTAssertEqual(command.screenRegionOutput, .translation)
+        XCTAssertTrue(command.isBuiltIn)
+        XCTAssertFalse(command.reviewChanges)
+        XCTAssertFalse(command.prompt.contains(CommandModel.targetLanguagePlaceholder))
+        XCTAssertTrue(CommandModel.defaultCommands.contains { $0.id == CommandModel.BuiltInID.screenshotTranslate })
+        XCTAssertTrue(CommandModel.builtInsAddedAfterFirstRelease.contains { $0.id == CommandModel.BuiltInID.screenshotTranslate })
     }
 
     // MARK: - Hidden commands
@@ -274,11 +324,13 @@ final class CommandModelCodingTests: XCTestCase {
         XCTAssertEqual(CommandModel.BuiltInID.table.uuidString, "00000000-0001-0000-0000-000000000008")
         XCTAssertEqual(CommandModel.BuiltInID.grammarCheck.uuidString, "00000000-0001-0000-0000-000000000009")
         XCTAssertEqual(CommandModel.BuiltInID.translate.uuidString, "00000000-0001-0000-0000-00000000000A")
+        XCTAssertEqual(CommandModel.BuiltInID.formulaOCR.uuidString, "00000000-0001-0000-0000-00000000000B")
+        XCTAssertEqual(CommandModel.BuiltInID.screenshotTranslate.uuidString, "00000000-0001-0000-0000-00000000000C")
     }
 
     func testDefaultCommandsCountAndAllBuiltIn() {
         let defaults = CommandModel.defaultCommands
-        XCTAssertEqual(defaults.count, 10)
+        XCTAssertEqual(defaults.count, 12)
         XCTAssertTrue(defaults.allSatisfy(\.isBuiltIn))
     }
 
